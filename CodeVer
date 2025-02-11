@@ -1,0 +1,373 @@
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local localroot = character:WaitForChild("HumanoidRootPart")
+
+local function UpdateChar()
+    character = player.Character or player.CharacterAdded:Wait()
+    localroot = character:WaitForChild("HumanoidRootPart")
+end
+
+game.Players.LocalPlayer.CharacterAdded:Connect(UpdateChar)
+
+-- Создание кастомного GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false -- GUI не исчезает после смерти
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 400, 0, 300)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+-- Перетаскивание GUI
+local dragging = false
+local dragInput, dragStart, startPos
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.Text = "FE Kill All GUI v1 by github.com/NellyStart"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+titleLabel.BorderSizePixel = 0
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 18
+titleLabel.Parent = mainFrame
+
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -30, 0, 0)
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+closeButton.BorderSizePixel = 0
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.TextSize = 18
+closeButton.Parent = mainFrame
+
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+local tabButtonsFrame = Instance.new("Frame")
+tabButtonsFrame.Size = UDim2.new(0, 100, 1, -30)
+tabButtonsFrame.Position = UDim2.new(0, 0, 0, 30)
+tabButtonsFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+tabButtonsFrame.BorderSizePixel = 0
+tabButtonsFrame.Parent = mainFrame
+
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, -100, 1, -30)
+contentFrame.Position = UDim2.new(0, 100, 0, 30)
+contentFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+contentFrame.BorderSizePixel = 0
+contentFrame.Parent = mainFrame
+
+-- Создание ScrollBar для листания функций
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, 0, 1, 0)
+scrollFrame.Position = UDim2.new(0, 0, 0, 0)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ScrollBarThickness = 12 -- Увеличенный ползунок
+scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+scrollFrame.Parent = contentFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.Parent = scrollFrame
+
+-- Функция для создания вкладок
+local function createTab(name)
+    local tabButton = Instance.new("TextButton")
+    tabButton.Size = UDim2.new(1, 0, 0, 30)
+    tabButton.Position = UDim2.new(0, 0, 0, (#tabButtonsFrame:GetChildren() - 1) * 30)
+    tabButton.Text = name
+    tabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    tabButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    tabButton.BorderSizePixel = 0
+    tabButton.Font = Enum.Font.SourceSans
+    tabButton.TextSize = 14
+    tabButton.Parent = tabButtonsFrame
+
+    local tabContent = Instance.new("Frame")
+    tabContent.Size = UDim2.new(1, 0, 1, 0)
+    tabContent.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    tabContent.BorderSizePixel = 0
+    tabContent.Visible = false
+    tabContent.Parent = scrollFrame
+
+    tabButton.MouseButton1Click:Connect(function()
+        for _, child in pairs(scrollFrame:GetChildren()) do
+            if child:IsA("Frame") then
+                child.Visible = false
+            end
+        end
+        tabContent.Visible = true
+    end)
+
+    return tabContent
+end
+
+-- Создание вкладки "Main"
+local mainTab = createTab("Main")
+
+-- Переменные для координат
+local selectedX, selectedY, selectedZ = 0, 0, -10
+
+-- Функция для создания текстового поля
+local function createInput(parent, name, defaultValue, callback)
+    local inputFrame = Instance.new("Frame")
+    inputFrame.Size = UDim2.new(1, -20, 0, 30)
+    inputFrame.Position = UDim2.new(0, 10, 0, (#parent:GetChildren() - 1) * 30)
+    inputFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    inputFrame.BorderSizePixel = 0
+    inputFrame.Parent = parent
+
+    local inputLabel = Instance.new("TextLabel")
+    inputLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    inputLabel.Position = UDim2.new(0, 0, 0, 0)
+    inputLabel.Text = name
+    inputLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    inputLabel.BackgroundTransparency = 1
+    inputLabel.Font = Enum.Font.SourceSans
+    inputLabel.TextSize = 14
+    inputLabel.TextWrapped = true -- Текст не выходит за края
+    inputLabel.Parent = inputFrame
+
+    local inputBox = Instance.new("TextBox")
+    inputBox.Size = UDim2.new(0.5, -10, 1, -10)
+    inputBox.Position = UDim2.new(0.5, 0, 0, 5)
+    inputBox.Text = tostring(defaultValue)
+    inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    inputBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    inputBox.BorderSizePixel = 0
+    inputBox.Font = Enum.Font.SourceSans
+    inputBox.TextSize = 14
+    inputBox.Parent = inputFrame
+
+    inputBox.FocusLost:Connect(function()
+        callback(inputBox.Text)
+    end)
+end
+
+-- Текстовые поля для ввода координат
+createInput(mainTab, "Position X (left/right)", 0, function(value)
+    selectedX = tonumber(value) or 0
+end)
+
+createInput(mainTab, "Position Y (up/down)", 0, function(value)
+    selectedY = tonumber(value) or 0
+end)
+
+createInput(mainTab, "Position Z (forward/backward)", -10, function(value)
+    selectedZ = tonumber(value) or -10
+end)
+
+-- Функция для перемещения всех игроков
+local TogglePlayerOnly = false
+local function bringPlayerOnly()
+    if TogglePlayerOnly then
+        spawn(function()
+            while TogglePlayerOnly do
+                for _, v in pairs(game.Players:GetPlayers()) do
+                    if v ~= player and v.Character then
+                        local JNR = v.Character:FindFirstChild("HumanoidRootPart")
+                        if JNR then
+                            JNR.CFrame = localroot.CFrame * CFrame.new(selectedX, selectedY, selectedZ)
+                            game:GetService("RunService").Heartbeat:Wait()
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end
+
+-- Переключатель для перемещения всех игроков
+local function createToggle(parent, name, callback)
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Size = UDim2.new(1, -20, 0, 30)
+    toggleFrame.Position = UDim2.new(0, 10, 0, (#parent:GetChildren() - 1) * 30)
+    toggleFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    toggleFrame.BorderSizePixel = 0
+    toggleFrame.Parent = parent
+
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Size = UDim2.new(0, 100, 1, -10)
+    toggleButton.Position = UDim2.new(0, 10, 0, 5)
+    toggleButton.Text = "OFF"
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Font = Enum.Font.SourceSans
+    toggleButton.TextSize = 14
+    toggleButton.Parent = toggleFrame
+
+    local toggleLabel = Instance.new("TextLabel")
+    toggleLabel.Size = UDim2.new(1, -120, 1, 0)
+    toggleLabel.Position = UDim2.new(0, 120, 0, 0)
+    toggleLabel.Text = name
+    toggleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleLabel.BackgroundTransparency = 1
+    toggleLabel.Font = Enum.Font.SourceSans
+    toggleLabel.TextSize = 14
+    toggleLabel.TextWrapped = true -- Текст не выходит за края
+    toggleLabel.Parent = toggleFrame
+
+    toggleButton.MouseButton1Click:Connect(function()
+        local state = toggleButton.Text == "OFF"
+        toggleButton.Text = state and "ON" or "OFF"
+        toggleButton.BackgroundColor3 = state and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+        callback(state)
+    end)
+end
+
+createToggle(mainTab, "Bring All Players", function(state)
+    TogglePlayerOnly = state
+    if TogglePlayerOnly then
+        bringPlayerOnly()
+    end
+end)
+
+-- Создание вкладки "Toggle"
+local toggleTab = createTab("Toggle")
+
+-- Функция для выбора клавиши
+local selectedKey = Enum.KeyCode.RightControl -- По умолчанию клавиша RightControl
+
+local function createKeySelector(parent, name, callback)
+    local keyFrame = Instance.new("Frame")
+    keyFrame.Size = UDim2.new(1, -20, 0, 30)
+    keyFrame.Position = UDim2.new(0, 10, 0, (#parent:GetChildren() - 1) * 30)
+    keyFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    keyFrame.BorderSizePixel = 0
+    keyFrame.Parent = parent
+
+    local keyLabel = Instance.new("TextLabel")
+    keyLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    keyLabel.Position = UDim2.new(0, 0, 0, 0)
+    keyLabel.Text = name
+    keyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    keyLabel.BackgroundTransparency = 1
+    keyLabel.Font = Enum.Font.SourceSans
+    keyLabel.TextSize = 14
+    keyLabel.TextWrapped = true -- Текст не выходит за края
+    keyLabel.Parent = keyFrame
+
+    local keyButton = Instance.new("TextButton")
+    keyButton.Size = UDim2.new(0.5, -10, 1, -10)
+    keyButton.Position = UDim2.new(0.5, 0, 0, 5)
+    keyButton.Text = selectedKey.Name
+    keyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    keyButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    keyButton.BorderSizePixel = 0
+    keyButton.Font = Enum.Font.SourceSans
+    keyButton.TextSize = 14
+    keyButton.Parent = keyFrame
+
+    keyButton.MouseButton1Click:Connect(function()
+        keyButton.Text = "Press any key..."
+        local input = game:GetService("UserInputService").InputBegan:Wait()
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            selectedKey = input.KeyCode
+            keyButton.Text = selectedKey.Name
+            callback(selectedKey)
+        end
+    end)
+end
+
+-- Добавляем выбор клавиши на страницу Toggle
+createKeySelector(toggleTab, "Toggle KEY", function(key)
+    selectedKey = key
+end)
+
+-- Функция для изменения прозрачности GUI
+local function createTransparencySlider(parent, name, callback)
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Size = UDim2.new(1, -20, 0, 30)
+    sliderFrame.Position = UDim2.new(0, 10, 0, (#parent:GetChildren() - 1) * 30)
+    sliderFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    sliderFrame.BorderSizePixel = 0
+    sliderFrame.Parent = parent
+
+    local sliderLabel = Instance.new("TextLabel")
+    sliderLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    sliderLabel.Position = UDim2.new(0, 0, 0, 0)
+    sliderLabel.Text = name
+    sliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    sliderLabel.BackgroundTransparency = 1
+    sliderLabel.Font = Enum.Font.SourceSans
+    sliderLabel.TextSize = 14
+    sliderLabel.TextWrapped = true -- Текст не выходит за края
+    sliderLabel.Parent = sliderFrame
+
+    local slider = Instance.new("TextButton")
+    slider.Size = UDim2.new(0.5, -10, 1, -10)
+    slider.Position = UDim2.new(0.5, 0, 0, 5)
+    slider.Text = "50%"
+    slider.TextColor3 = Color3.fromRGB(255, 255, 255)
+    slider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    slider.BorderSizePixel = 0
+    slider.Font = Enum.Font.SourceSans
+    slider.TextSize = 14
+    slider.Parent = sliderFrame
+
+    slider.MouseButton1Click:Connect(function()
+        local transparency = (mainFrame.BackgroundTransparency + 0.1) % 1
+        mainFrame.BackgroundTransparency = transparency
+        slider.Text = math.floor((1 - transparency) * 100) .. "%"
+        callback(transparency)
+    end)
+end
+
+-- Добавляем слайдер прозрачности на страницу Toggle
+createTransparencySlider(toggleTab, "GUI Transparency", function(transparency)
+    mainFrame.BackgroundTransparency = transparency
+end)
+
+-- Функция для сворачивания/разворачивания GUI
+local guiVisible = true
+game:GetService("UserInputService").InputBegan:Connect(function(input)
+    if input.KeyCode == selectedKey then
+        guiVisible = not guiVisible
+        mainFrame.Visible = guiVisible
+    end
+end)
+
+-- Активируем первую вкладку
+for _, child in pairs(scrollFrame:GetChildren()) do
+    if child:IsA("Frame") then
+        child.Visible = false
+    end
+end
+mainTab.Visible = true
